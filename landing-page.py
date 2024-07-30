@@ -21,14 +21,16 @@ import time
 
 import logging
 
+# Configure logging
+logging.basicConfig(filename='debug.log', level=logging.DEBUG, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+log = logging.getLogger(__name__)
+
 stdscr = curses.initscr()
 
 
 curses.start_color()
 curses.use_default_colors()
-# for i in range(0, curses.COLORS):
-    # curses.init_pair(i, i, -1);
-
 
 # Define colors
 def hex_to_rgb(hexstring):
@@ -38,24 +40,57 @@ def hex_to_rgb(hexstring):
     return (r, g, b)
 
 if curses.can_change_color():
-    black_rgb = (0, 0, 0)
-    white_rgb = hex_to_rgb("c0caf5")
-    red_rgb = hex_to_rgb("db4b4b")
-    purple_rgb= hex_to_rgb("9d7cd8")
-    green_rgb = hex_to_rgb("9ece6a")
-    green2_rgb = hex_to_rgb("29ad2b")
-    blue_rgb = hex_to_rgb("565f89")
-    yellow_rgb = hex_to_rgb("e0af68")
-    brown_rgb = hex_to_rgb("634003")
+    black = (0, 0, 0)
+    white = hex_to_rgb("c0caf5")
+    red = hex_to_rgb("db4b4b")
+    purple= hex_to_rgb("9d7cd8")
+    green = hex_to_rgb("9ece6a")
+    green2 = hex_to_rgb("29ad2b")
+    blue = hex_to_rgb("565f89")
+    yellow = hex_to_rgb("e0af68")
+    brown = hex_to_rgb("896018")
 
-    curses.init_color(curses.COLOR_BLACK, *black_rgb)
-    curses.init_color(curses.COLOR_WHITE, *white_rgb)
-    curses.init_color(curses.COLOR_RED, *red_rgb)
-    curses.init_color(curses.COLOR_MAGENTA, *purple_rgb)
-    curses.init_color(curses.COLOR_BLUE, *blue_rgb)
-    curses.init_color(curses.COLOR_YELLOW, *yellow_rgb)
-    curses.init_color(curses.COLOR_GREEN, *green2_rgb)
-    curses.init_color(curses.COLOR_CYAN, *brown_rgb)
+    tn_bg = hex_to_rgb("24283b")
+    tn_bg_dark = hex_to_rgb("1f2335")
+    tn_bg_highlight = hex_to_rgb("292e42")
+    tn_blue = hex_to_rgb("7aa2f7")
+    tn_blue0 = hex_to_rgb("3d59a1")
+    tn_blue1 = hex_to_rgb("2ac3de")
+    tn_blue2 = hex_to_rgb("0db9d7")
+    tn_blue5 = hex_to_rgb("89ddff")
+    tn_blue6 = hex_to_rgb("b4f9f8")
+    tn_blue7 = hex_to_rgb("394b70")
+    tn_comment = hex_to_rgb("565f89")
+    tn_cyan = hex_to_rgb("7dcfff")
+    tn_dark3 = hex_to_rgb("545c7e")
+    tn_dark5 = hex_to_rgb("737aa2")
+    tn_fg = hex_to_rgb("c0caf5")
+    tn_fg_dark = hex_to_rgb("a9b1d6")
+    tn_fg_gutter = hex_to_rgb("3b4261")
+    tn_green = hex_to_rgb("9ece6a")
+    tn_green1 = hex_to_rgb("73daca")
+    tn_green2 = hex_to_rgb("41a6b5")
+    tn_magenta = hex_to_rgb("bb9af7")
+    tn_magenta2 = hex_to_rgb("ff007c")
+    tn_orange = hex_to_rgb("ff9e64")
+    tn_purple = hex_to_rgb("9d7cd8")
+    tn_red = hex_to_rgb("f7768e")
+    tn_red1 = hex_to_rgb("db4b4b")
+    tn_teal = hex_to_rgb("1abc9c")
+    tn_terminal_black = hex_to_rgb("414868")
+    tn_yellow = hex_to_rgb("e0af68")
+    tn_git_add = hex_to_rgb("449dab")
+    tn_git_change = hex_to_rgb("6183bb")
+    tn_git_delete = hex_to_rgb("914c54")
+
+    curses.init_color(curses.COLOR_BLACK, *black)
+    curses.init_color(curses.COLOR_WHITE, *white)
+    curses.init_color(curses.COLOR_RED, *red)
+    curses.init_color(curses.COLOR_MAGENTA, *purple)
+    curses.init_color(curses.COLOR_BLUE, *blue)
+    curses.init_color(curses.COLOR_YELLOW, *yellow)
+    curses.init_color(curses.COLOR_GREEN, *green2)
+    curses.init_color(curses.COLOR_CYAN, *brown)
 
 curses.init_pair(1, curses.COLOR_BLUE, -1)
 curses.init_pair(2, curses.COLOR_RED, -1)
@@ -66,12 +101,7 @@ curses.init_pair(6, curses.COLOR_RED, -1)
 curses.init_pair(8, curses.COLOR_YELLOW, -1)
 curses.init_pair(7, curses.COLOR_WHITE, -1)
 curses.init_pair(9, curses.COLOR_CYAN, -1)
-RED_ON_BG = curses.color_pair(1)
-WHITE_ON_BG = curses.color_pair(2)
-PURPLE_ON_BG = curses.color_pair(3)
-GREEN_ON_BG = curses.color_pair(4)
 
-curses.use_default_colors()
 
     
 HEADER = [
@@ -149,12 +179,27 @@ FOOTER_COLOR_MAP = """\
 000000000444400004444400000444404444040444400000444400444440000444400044444000044999999999900044440400044440000044440004444400000044440004444\
 """
 
+
+
+actions = {}
+
+def make_button(y, x, key, name, command):
+    stdscr.addch(y, x, '[')
+    stdscr.addch(y, x, key, )
+    stdscr.addch(y, x, ']')
+    
+
+    stdscr.addstr(y, x, f"[{key}] {name}")
+    actions[key] = command
+
+
 def main(stdscr):
     # Clear screen
     stdscr.clear()
 
-    # Turn off cursor blinking
+    # Turn off cursor blinking and echoing
     curses.curs_set(0)
+    curses.noecho()
 
     # Get screen height and width
     height, width = stdscr.getmaxyx()
@@ -171,6 +216,12 @@ def main(stdscr):
         y += 1
         x = 0
 
+
+    make_button(height - 5, 6, 'e', 'Edit', 'vim /home/sean/code/in-progress/landing-page/landing-page.py')
+    make_button(height - 4, 6, 'q', 'Quit', 'exit()')
+    
+
+
     i = 0
     x = width - 142
     y = 14
@@ -183,22 +234,16 @@ def main(stdscr):
         y += 1
         x = width - 142
 
-    # Create a window for input
-    stdscr.bkgd(curses.color_pair(2))
 
     # Main loop
     while True:
-        # Display a message in the middle of the screen
-        # msg = "Welcome to your custom Neovim landing page!"
-        # stdscr.addstr(height // 2, (width - len(msg)) // 2, msg, curses.color_pair(1))
+        # get and handle input
+        key = stdscr.getch()
+        print(f"this key: {key}")
+        exec(actions[key])
 
-        # rectangle(stdscr, 1, 1, height - 1, width - 2)
+        # update the screen
         stdscr.refresh()
-
-        # Get user input
-        curses.echo()
-        curses.noecho()
-
 
 if __name__ == "__main__":
     curses.wrapper(main)
