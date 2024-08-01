@@ -22,7 +22,7 @@ import time
 import logging
 
 # Configure logging
-logging.basicConfig(filename='debug.log', level=logging.DEBUG, 
+logging.basicConfig(filename='debug.log', level=logging.DEBUG, filemode='w',
                     format='%(asctime)s - %(levelname)s - %(message)s')
 log = logging.getLogger(__name__)
 
@@ -41,6 +41,7 @@ def hex_to_rgb(hexstring):
 
 green = hex_to_rgb("29ad2b")
 brown = hex_to_rgb("896018")
+white = hex_to_rgb("ffffff")
 
 tn_bg = hex_to_rgb("24283b")
 tn_bg_dark = hex_to_rgb("1f2335")
@@ -103,7 +104,7 @@ color_definitions = {
     COLOR_BLUE: tn_blue0,
     COLOR_MAGENTA: tn_magenta2,
     COLOR_CYAN: tn_cyan,
-    COLOR_WHITE: tn_fg,
+    COLOR_WHITE: white,
     COLOR_DARK_GREY: tn_dark5,
     COLOR_LIGHT_RED: tn_red,
     COLOR_LIGHT_GREEN: tn_green,
@@ -111,7 +112,7 @@ color_definitions = {
     COLOR_LIGHT_BLUE: tn_blue,
     COLOR_PURPLE: tn_purple,
     COLOR_BROWN: brown,
-    COLOR_DIM_WHITE: tn_fg_dark,
+    COLOR_DIM_WHITE: tn_fg,
 }
 
 
@@ -142,8 +143,25 @@ def init_16_colors():
     curses.init_pair(15, COLOR_BROWN, -1)
     curses.init_pair(16, COLOR_DIM_WHITE, -1)
 
-
 init_16_colors()
+
+BLACK = curses.color_pair(1)
+RED = curses.color_pair(2)
+GREEN = curses.color_pair(3)
+ORANGE = curses.color_pair(4)
+BLUE = curses.color_pair(5)
+MAGENTA = curses.color_pair(6)
+CYAN = curses.color_pair(7)
+WHITE = curses.color_pair(8)
+DARK_GREY = curses.color_pair(9)
+LIGHT_RED = curses.color_pair(10)
+LIGHT_GREEN = curses.color_pair(11)
+YELLOW = curses.color_pair(12)
+LIGHT_BLUE = curses.color_pair(13)
+PURPLE = curses.color_pair(14)
+BROWN = curses.color_pair(15)
+DIM_WHITE = curses.color_pair(16)
+
 
     
 HEADER = [
@@ -159,8 +177,8 @@ r"""      (__)    (__) (__)(__)  (__)(_")  (_/   (__)        (_") ("_)(__)  (__)
 HEADER_COLOR_MAP = """\
 0000000eeee00050eeeee050000e000000e000e000e000eeee000000000e000e000000e0000000eeee00000eeee000ee000ee000000eeee000000e000000000e00000000eeee050eeeee050\
 000000e0ee5e055e0eee5e5500e5e0050e0e0e5e0e5e0e0eeee0500000e5e0e5e0500e5e00505e00e5e055e00e5e05e0e0e0e00005e00e5e0500e5e0000500e5e005050e5eeee5e0eee5e50\
-000005eeee0e500e00ee50005e0e0e505e00ee0e5eee5eeee0e5000005e0eee0e505e0e0e5005e0eee0e55e0eee0e50e0e0e00000ee0eee0e550e0e050005e0e0e500ee0e05000e00ee5000\
-0000005eeee0e00e0eeee000e0eee0e05e0ee00e500005eeee0e000005e00e00e50e0eee0e000e00eee000e00eee0055e5e5500000e00eee0005e0e5ee00e0eee0e000e0eeee00e0eeee000\
+000005eeee0e500e00ee50005e0e0e505e00ee0e5eee5eeee0e5000005e0eee0e505e0e0e5005e0eee0e55e0eee0e50e0e0e000005e0eee0e550e0e050005e0e0e5005e0e05000e00ee5000\
+0000005eeee0e00e0eeee000e0eee0e05e0ee00e500005eeee0e000005e00e00e50e0eee0e000e00eee000e00eee0055e5e5500000e00eee0005e0e5ee00e0eee0e000e0e5ee00e0eeee000\
 000000eeeeee550eeeeeee0eee000eee0eee0eee00000eeeeee5500000eee0eee0eee000eee00eee000000eee0000000eee0000000eee0000000eeeeeeeeee000eee000eeeeee0eeeeeee00\
 0000000550055555500055005500005505500055555000550055550000550005500550000550055555000055555555555555000000555550000055005500550000550055505500550005500\
 0000005555000055550555555550055555555005550005555000000005555055555555005555555555500555555505550555500005555555000555555555555005555555555555555055550\
@@ -221,68 +239,188 @@ FOOTER_COLOR_MAP = """\
 000000000333300003333300000333303333030333300000333300333330000333300033333000033ffffffffff00033330300033330000033330003333300000033330003333\
 """
 
-
-
 actions = {}
 
-def make_button(y, x, key, name, command):
-    stdscr.addch(y, x, '[')
-    stdscr.addch(y, x, key, )
-    stdscr.addch(y, x, ']')
-    
+class Button:
 
-    stdscr.addstr(y, x, f"[{key}] {name}")
-    actions[key] = command
+    def __init__(self, y, x, key, name, command, args="", path=""):
+        self.y = y
+        self.x = x
+        self.key = key
+        self.name = name
+        self.command = command
+        self.args = args
+        self.path = path
+        if len(args) > 0:
+            actions[self.key] = self.command + ' ' + args + ' ' + self.path
+        else:
+            actions[self.key] = self.command + ' ' + self.path
+
+    def draw(self):
+        x = self.x
+        swap_exists = self.swap_exists()
+        dir_open = self.dir_open()
+        is_open = swap_exists or dir_open
+
+        # prefix
+        if is_open:
+            stdscr.addch(self.y, x-3, '▪', DARK_GREY)
+        else:
+            stdscr.addch(self.y, x-3, '▪', WHITE)
+        stdscr.addch(self.y, x, '[', CYAN)
+        x += 1
+
+        # orange/black number for open files
+        if is_open:
+            stdscr.addch(self.y, x, self.key, BLACK)
+        else:
+            stdscr.addch(self.y, x, self.key, ORANGE)
+        x += 1
+
+        # suffix
+        stdscr.addch(self.y, x, ']', CYAN)
+        x += 1
+        if is_open:
+            stdscr.addstr(self.y, x, f" {self.name}", DARK_GREY)
+        else:
+            stdscr.addstr(self.y, x, f" {self.name}", WHITE)
+
+    def build_command(self):
+        return self.command + " " + self.path
+
+    def swap_exists(self):
+        swaps = os.listdir("/home/sean/.config/nvim/swap") + os.listdir("/home/sean/.local/state/nvim/swap")
+        for sf in swaps:
+            if sf.replace("%", "/")[0:-4] == self.path:
+                return True
+        return False
+
+    def dir_open(self):
+        if self.command[0:14] == "gnome-terminal":
+            fish_pids = subprocess.check_output(['pgrep','fish'], text=True).strip().split('\n')
+            for pid in fish_pids:
+                out = subprocess.check_output(['lsof','-p',pid], text=True)
+
+                for line in out.splitlines():
+                    if 'fish' in line:
+                        name_entry = line.split()[-1]  # Extract the last field, which is the NAME entry
+                        log.info(f"PID: {pid}, NAME: {name_entry}")
+                        if f"{name_entry}/" == self.path:
+                            return True
+                        break
+        return False
 
 
-def main(stdscr):
+
+
+def make_title():
+    pass
+
+def draw_ascii(x, y, image, map, bold_color=-1):
+    i = 0
+    cx = x
+    cy = y
+    for line in image:
+        for char in line:
+            this = int(map[i], 16)
+            stdscr.addch(cy, cx, char, curses.color_pair(this) | (curses.A_BOLD if this == bold_color else 0))
+            i += 1
+            cx += 1
+        cy += 1
+        cx = x
+
+
+def draw():
     # Clear screen
     stdscr.clear()
 
     # Turn off cursor blinking and echoing
     curses.curs_set(0)
     curses.noecho()
+    curses.set_escdelay(1)
 
     # Get screen height and width
     height, width = stdscr.getmaxyx()
 
-    i = 0
-    x = 0
-    y = 1
-    for line in HEADER:
-        for char in line:
-            this = int(HEADER_COLOR_MAP[i], 16)
-            stdscr.addch(y, x, char, curses.color_pair(this) | (curses.A_BOLD if this == 14 else 0))
-            i += 1
-            x += 1
-        y += 1
-        x = 0
+    draw_ascii(0, 1, HEADER, HEADER_COLOR_MAP, 14)
+    draw_ascii(width - 142, 14, FOOTER, FOOTER_COLOR_MAP)
+
+    stdscr.addstr(11, 6, "NeoVim Shortcuts:", WHITE)
+    stdscr.addstr(11, 6 + 40, "Directory Shortcuts:", WHITE)
 
 
-    make_button(height - 5, 6, 'e', 'Edit', 'vim /home/sean/code/in-progress/landing-page/landing-page.py')
-    make_button(height - 4, 6, 'q', 'Quit', 'exit()')
-    
+def main(stdscr):
+    draw()
+
+    height, width = stdscr.getmaxyx()
+    x, y = 0, 0
+
+    buttons = []
 
 
-    i = 0
-    x = width - 142
+    buttons.append(Button(height-2, 8, 'q', 'Quit', 'exit'))
+    buttons.append(Button(height-3, 8, 'e', 'Edit', 'nvim', path='/home/sean/code/in-progress/landing-page/landing-page.py'))
+    buttons.append(Button(height-4, 8, 's', 'Kill Swaps', '/home/sean/bin/rmswp'))
     y = 14
-    for line in FOOTER:
-        for char in line:
-            this = int(FOOTER_COLOR_MAP[i], 16)
-            stdscr.addch(y, x, char, curses.color_pair(this))
-            i += 1
-            x += 1
-        y += 1
-        x = width - 142
+    x = 14
+    buttons.append(Button(y, x, 't', 'TFG Notes', "nvim", path="/home/sean/code/tfg/notes"))
+    y += 2
+    buttons.append(Button(y, x, 'n', 'NeoVim Config', "nvim", path="/home/sean/.config/nvim/init.lua"))
+    y += 2
+    buttons.append(Button(y, x, 'f', 'Fish Config', "nvim", path="/home/sean/.config/fish/config.fish"))
+    y += 2
+    buttons.append(Button(y, x, 'c', 'Cheat Sheets', "nvim", path="/home/sean/.findables/cheatsheets"))
 
+    y = 14
+    x = 54
+    # buttons.append(Button(y, x, 't', 'Tech for Good', "gnome-terminal --maximize --working-directory=/home/sean/code/tfg/", path="/home/sean/code/tfg/"))
+    # y += 2
+    buttons.append(Button(y, x, 'm', 'Mission Uplink', "gnome-terminal --maximize --working-directory=/home/sean/code/tfg/Mission-Uplink/", path="/home/sean/code/tfg/Mission-Uplink/"))
+    y += 2
+    buttons.append(Button(y, x, 'b', 'Uplink Browser', "gnome-terminal --maximize --working-directory=/home/sean/code/tfg/dev-env/", path="/home/sean/code/tfg/dev-env/"))
+    y += 2
+    buttons.append(Button(y, x, 'j', 'WotR', "gnome-terminal --maximize --working-directory=/home/sean/code/godot/Wizards-of-the-Rift/", path="/home/sean/code/godot/Wizards-of-the-Rift/"))
+    y += 2
+
+
+
+
+
+    valid_keys = {
+            'm',
+            'b',
+            't',
+            'j',
+            'c',
+            'f',
+            'n',
+            's',
+            'e',
+            'q',
+            ' ',
+            '\x1b'
+            }
 
     # Main loop
     while True:
         # get and handle input
-        key = stdscr.getch()
-        print(f"this key: {key}")
-        exec(actions[key])
+        for button in buttons:
+            button.draw()
+        key = stdscr.getkey()
+        if key == 'q' or key == '\x1b':
+            log.info("Quitting...")
+            exit(0)
+        if key == ' ':
+            stdscr.refresh()
+            continue
+        if key in valid_keys:
+            log.info(f"'{key}' action: {actions[key].split()}")
+            subprocess.run(actions[key].split())
+            draw()
+            stdscr.refresh()
+        else:
+            log.error(f"Invalid key {key}")
+
 
         # update the screen
         stdscr.refresh()
