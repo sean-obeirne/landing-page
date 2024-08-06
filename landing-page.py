@@ -15,6 +15,8 @@
 import curses
 from curses.textpad import rectangle
 
+import random
+
 import subprocess, os, sys
 
 import time
@@ -239,28 +241,36 @@ FOOTER_COLOR_MAP = """\
 000000000333300003333300000333303333030333300000333300333330000333300033333000033ffffffffff00033330300033330000033330003333300000033330003333\
 """
 
+TERMINAL_PREFIX = "gnome-terminal --maximize --working-directory="
 actions = {}
 
 class Button:
 
-    def __init__(self, y, x, key, name, command, args="", path=""):
+    def __init__(self, y, x, key, name, path="", command="", sctype="gt"):
         self.y = y
         self.x = x
         self.key = key
         self.name = name
-        self.command = command
-        self.args = args
         self.path = path
-        if len(args) > 0:
-            actions[self.key] = self.command + ' ' + args + ' ' + self.path
-        else:
-            actions[self.key] = self.command + ' ' + self.path
+        self.sctype = sctype
+        if sctype == "gt":
+            self.command = f"{TERMINAL_PREFIX}{path}"
+            if command == "nvim":
+                self.command += f" -- {command} {path}"
+        elif sctype == "app":
+            self.command = command
+        elif sctype == "internal":
+            self.command = command
+        # log.info(f"Command created: {self.command}")
+        actions[self.key] = self.command
 
     def draw(self):
         x = self.x
         swap_exists = self.swap_exists()
-        dir_open = self.dir_open()
-        is_open = swap_exists or dir_open
+        # dir_open = self.dir_open()
+        is_open = swap_exists #or dir_open
+        is_open = False
+        is_open = is_open and self.name != 'Terminal'
 
         # prefix
         if is_open:
@@ -297,17 +307,14 @@ class Button:
 
     def dir_open(self):
         if self.command[0:14] == "gnome-terminal":
-            fish_pids = subprocess.check_output(['pgrep','fish'], text=True).strip().split('\n')
+            fish_pids = subprocess.check_output(['pgrep', 'fish'], text=True).split('\n')
+            log.info(fish_pids)
             for pid in fish_pids:
-                out = subprocess.check_output(['lsof','-p',pid], text=True)
-
-                for line in out.splitlines():
-                    if 'fish' in line:
-                        name_entry = line.split()[-1]  # Extract the last field, which is the NAME entry
-                        log.info(f"PID: {pid}, NAME: {name_entry}")
-                        if f"{name_entry}/" == self.path:
-                            return True
-                        break
+                cmd = f"lsof -p {pid} | head -n 2 | tail -n 1"
+                out = subprocess.check_output(cmd, shell=True, text=True).split()
+                log.info(out)
+                if out[0] == 'fish':
+                    return f"{out[-1]}/" == self.path
         return False
 
 
@@ -330,6 +337,19 @@ def draw_ascii(x, y, image, map, bold_color=-1):
         cx = x
 
 
+def randomize_colors():
+    global FOOTER_COLOR_MAP
+    mutable = [ '1', '2', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e']
+    for src_color in mutable:
+        new_color = random.choice(mutable)
+        while src_color == new_color:
+            new_color = random.choice(mutable)
+        # log.info(f"Changing {src_color} to {new_color}...")
+        # mutable.remove(new_color)
+        FOOTER_COLOR_MAP = FOOTER_COLOR_MAP.replace(src_color, new_color)
+            
+
+
 def draw():
     # Clear screen
     stdscr.clear()
@@ -347,6 +367,7 @@ def draw():
 
     stdscr.addstr(11, 6, "NeoVim Shortcuts:", WHITE)
     stdscr.addstr(11, 6 + 40, "Directory Shortcuts:", WHITE)
+    stdscr.addstr(25, 6, "Application Shortcuts:", WHITE)
 
 
 def main(stdscr):
@@ -358,32 +379,58 @@ def main(stdscr):
     buttons = []
 
 
-    buttons.append(Button(height-2, 8, 'q', 'Quit', 'exit'))
-    buttons.append(Button(height-3, 8, 'e', 'Edit', 'nvim', path='/home/sean/code/in-progress/landing-page/landing-page.py'))
-    buttons.append(Button(height-4, 8, 's', 'Kill Swaps', '/home/sean/bin/rmswp'))
+    buttons.append(Button(height-2, 8, 'q', 'Quit', command='exit'))
+    buttons.append(Button(height-3, 8, 'e', 'Edit', command='nvim', path='/home/sean/code/in-progress/landing-page/landing-page.py'))
+    buttons.append(Button(height-4, 8, 'k', 'Kill Swaps', command='/home/sean/bin/rmswp', sctype="app"))
+    buttons.append(Button(height-5, 8, '`', 'Settings', command="gnome-control-center", sctype="app"))
     y = 14
     x = 14
-    buttons.append(Button(y, x, 't', 'TFG Notes', "nvim", path="/home/sean/code/tfg/notes"))
+    buttons.append(Button(y, x, 't', 'TFG Notes', command="nvim", path="/home/sean/code/tfg/notes"))
     y += 2
-    buttons.append(Button(y, x, 'n', 'NeoVim Config', "nvim", path="/home/sean/.config/nvim/init.lua"))
+    buttons.append(Button(y, x, 'v', 'NeoVim Config', command="nvim", path="/home/sean/.config/nvim/init.lua"))
     y += 2
-    buttons.append(Button(y, x, 'f', 'Fish Config', "nvim", path="/home/sean/.config/fish/config.fish"))
+    buttons.append(Button(y, x, 'f', 'Fish Config', command="nvim", path="/home/sean/.config/fish/config.fish"))
     y += 2
-    buttons.append(Button(y, x, 'c', 'Cheat Sheets', "nvim", path="/home/sean/.findables/cheatsheets"))
+    buttons.append(Button(y, x, 'c', 'Cheat Sheets', command="nvim", path="/home/sean/.findables/cheatsheets"))
 
     y = 14
     x = 54
-    # buttons.append(Button(y, x, 't', 'Tech for Good', "gnome-terminal --maximize --working-directory=/home/sean/code/tfg/", path="/home/sean/code/tfg/"))
+    # buttons.append(Button(y, x, 't', 'Tech for Good', path="/home/sean/code/tfg/"))
     # y += 2
-    buttons.append(Button(y, x, 'm', 'Mission Uplink', "gnome-terminal --maximize --working-directory=/home/sean/code/tfg/Mission-Uplink/", path="/home/sean/code/tfg/Mission-Uplink/"))
+    buttons.append(Button(y, x, 'm', 'Mission Uplink', path="/home/sean/code/tfg/Mission-Uplink/"))
     y += 2
-    buttons.append(Button(y, x, 'b', 'Uplink Browser', "gnome-terminal --maximize --working-directory=/home/sean/code/tfg/dev-env/", path="/home/sean/code/tfg/dev-env/"))
+    buttons.append(Button(y, x, 'b', 'Uplink Browser', path="/home/sean/code/tfg/dev-env/"))
     y += 2
-    buttons.append(Button(y, x, 'j', 'WotR', "gnome-terminal --maximize --working-directory=/home/sean/code/godot/Wizards-of-the-Rift/", path="/home/sean/code/godot/Wizards-of-the-Rift/"))
+    buttons.append(Button(y, x, 'j', 'WotR', path="/home/sean/code/godot/Wizards-of-the-Rift/"))
+    y += 2
+    buttons.append(Button(y, x, 'n', 'NeoVim Plugins Folder', path="/home/sean/.config/nvim/lua/plugins/"))
+    y += 2
+    buttons.append(Button(y, x, 'x', 'Findables', path="/home/sean/.findables"))
     y += 2
 
+    y = 25
+    x = 9
+    y += 2
+    buttons.append(Button(y, x, 'g', 'Terminal', path="/home/sean/"))
+    y += 2
+    x += 4
+    buttons.append(Button(y, x, 'w', 'Firefox', command="firefox", sctype="app"))
+    x += 20
+    y -= 2
+    buttons.append(Button(y, x, 'u', 'YT Music', command="firefox --new-window music.youtube.com", sctype="app"))
+    y += 2
+    x += 4
+    buttons.append(Button(y, x, 's', 'Spotify', command="spotify", sctype="app"))
+    x += 20
+    y -= 2
+    buttons.append(Button(y, x, 'r', 'RuneScape', command="/home/sean/applications/RuneLite.AppImage --scale 2 > /tmp/runelite.log", sctype="app"))
+    y += 2
+    x += 4
+    buttons.append(Button(y, x, 'y', 'YouTube', command="firefox --new-window youtube.com", sctype="app"))
 
-
+    y = 14
+    x = 140
+    buttons.append(Button(y, x, 'R', 'Randomize', command="randomize_colors()", sctype="internal"))
 
 
     valid_keys = {
@@ -394,10 +441,20 @@ def main(stdscr):
             'c',
             'f',
             'n',
+            'x',
+            'v',
+            'u',
             's',
+            'w',
+            'g',
+            'm',
+            'r',
+            'y',
+            'R',
+            'k',
             'e',
             'q',
-            ' ',
+            '`',
             '\x1b'
             }
 
@@ -415,7 +472,13 @@ def main(stdscr):
             continue
         if key in valid_keys:
             log.info(f"'{key}' action: {actions[key].split()}")
-            subprocess.run(actions[key].split())
+            if key == key.lower():
+                if key == 'r':
+                    os.system("/home/sean/applications/RuneLite.AppImage --scale 2 > /tmp/runelite.log")
+                else:
+                    subprocess.run(actions[key].split())
+            else:
+                exec(actions[key])
             draw()
             stdscr.refresh()
         else:
